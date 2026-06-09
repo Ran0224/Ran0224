@@ -1,342 +1,538 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Windows.Forms;
 using AForge.Imaging.Filters;
 using AForge.Video;
 using AForge.Video.DirectShow;
 using AForge.Video.FFMPEG;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.IO;
-using System.Drawing.Imaging;
 
 namespace WindowsFormsApplication1
 {
     public partial class Form1 : Form
     {
+        #region Fields
+
         private List<string> deviceList = new List<string>();
         private FilterInfoCollection videoDevices;
         private VideoCaptureDevice originalSource;
         private AsyncVideoSource transSource;
-        private int frameRate = 20;//默认帧率
-        private VideoFileWriter videoWriter = null;
-        private bool createNewFile = true;
-        private string videoFileName;
-        private string videoPath = AppDomain.CurrentDomain.BaseDirectory + "Capture\\";
+        
+        private const int DEFAULT_FRAME_RATE = 20;
+        private const string CAPTURE_DIRECTORY = "Capture";
+        
+        private VideoFileWriter videoWriter;
+        private string videoPath;
+        
+        private bool isRecording;
+        private bool isPaused;
+        private bool isCaptureBound;
+        private bool shouldStopRecording = true;
+        private bool createNewVideoFile = true;
 
+        #endregion
+
+        #region Constructor & Initialization
 
         public Form1()
         {
             InitializeComponent();
+            videoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, CAPTURE_DIRECTORY);
         }
-        private void CameraConn()
-        {
-
-            originalSource = new VideoCaptureDevice(videoDevices[this.deviceListBox.SelectedIndex].MonikerString);
-            this.videoSourcePlayer1.VideoSource = originalSource;
-            originalSource.NewFrame += new NewFrameEventHandler(transform);
-            transSource = new AsyncVideoSource(originalSource);
-            this.videoSourcePlayer2.VideoSource = transSource;
-            transSource.Start();
-            videoSourcePlayer2.Start();
-        }
-        private void transform(object sender, NewFrameEventArgs eventArgs)
-        {
-
-        }
-
-        private bool stopREC = true; // 控制录像状态
-
-        private void captureVedio(object sender, NewFrameEventArgs eventArgs)
-        {
-            if (stopREC) return; // 停止录像时直接返回
-
-            Bitmap image = eventArgs.Frame;
-
-            
-            using (Graphics g = Graphics.FromImage(image))
-            using (SolidBrush drawBrush = new SolidBrush(Color.Yellow))
-            using (Font drawFont = new Font("Arial", 6, FontStyle.Bold, GraphicsUnit.Millimeter))
-            {
-                int xPos = 15; // 简化计算
-                int yPos = 10;
-                string drawDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                g.DrawString(drawDate, drawFont, drawBrush, xPos, yPos);
-            }
-
-            // 2. 创建保存目录
-            if (!Directory.Exists(videoPath))
-                Directory.CreateDirectory(videoPath);
-
-            // 3. 录像写入
-            if (createNewFile) // 第一帧
-            {
-                string videoFileName = DateTime.Now.ToString("yyyy.MM.dd HH.mm.ss") + ".avi";
-                string videoFileFullPath = Path.Combine(videoPath, videoFileName); // 用Path.Combine更安全
-                createNewFile = false;
-
-                // 释放之前的写入器
-                if (videoWriter != null)
-                {
-                    videoWriter.Close();
-                    videoWriter.Dispose();
-                }
-
-                videoWriter = new VideoFileWriter();
-                videoWriter.Open(videoFileFullPath, image.Width, image.Height, frameRate, VideoCodec.MPEG4);
-                videoWriter.WriteVideoFrame(image);
-            }
-            else // 后续帧
-            {
-                videoWriter.WriteVideoFrame(image);
-            }
-        }
-
-        private bool isRecording = false;         // 是否正在录制
-        private bool isCaptureVedioEventBind = false; // 保证事件不会被多次绑定
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            if (!isRecording)
-            {
-                // 开始录制
-                stopREC = false;
-                createNewFile = true; // 新的录像文件
-                button4.Text = "停止录像";
-
-                // 只绑定一次事件，防止多绑异常
-                if (originalSource != null && !isCaptureVedioEventBind)
-                {
-                    originalSource.NewFrame += captureVedio;
-                    isCaptureVedioEventBind = true;
-                }
-                isRecording = true;
-            }
-            else
-            {
-                // 停止录制
-                stopREC = true;
-                button4.Text = "录制视频";
-
-                // 解绑事件，避���持续写入
-                if (originalSource != null && isCaptureVedioEventBind)
-                {
-                    originalSource.NewFrame -= captureVedio;
-                    isCaptureVedioEventBind = false;
-                }
-
-                // 关闭写入器
-                if (videoWriter != null)
-                {
-                    videoWriter.Close();
-                    videoWriter.Dispose();
-                    videoWriter = null;
-                }
-                isRecording = false;
-            }
-        }
-
-        private void button4_Click_1(object sender, EventArgs e)
-        {
-            if (!isRecording)
-            {
-                // 开始录制
-                stopREC = false;
-                createNewFile = true; // 新的录像文件
-                button4.Text = "停止录像";
-
-                // 只绑定一次事件，防止多绑异常
-                if (originalSource != null && !isCaptureVedioEventBind)
-                {
-                    originalSource.NewFrame += captureVedio;
-                    isCaptureVedioEventBind = true;
-                }
-                isRecording = true;
-            }
-            else
-            {
-                // 停止录制
-                stopREC = true;
-                button4.Text = "录制视频";
-
-                // 解绑事件，避���持续写入
-                if (originalSource != null && isCaptureVedioEventBind)
-                {
-                    originalSource.NewFrame -= captureVedio;
-                    isCaptureVedioEventBind = false;
-                }
-
-                // 关闭写入器
-                if (videoWriter != null)
-                {
-                    videoWriter.Close();
-                    videoWriter.Dispose();
-                    videoWriter = null;
-                }
-                isRecording = false;
-            }
-        }
-
-        // 截图
-        private void capturePicture(object sender, NewFrameEventArgs eventArgs)
-        {
-            try
-            {
-                //抓到图保存到指定路径
-                string drawDate = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-
-                if (!Directory.Exists(videoPath))
-                    Directory.CreateDirectory(videoPath);
-
-                string fileImageName = drawDate + ".bmp";
-                Bitmap bmp = eventArgs.Frame;
-
-                if (bmp == null)
-                {
-                    MessageBox.Show("捕获图像失败！", "提示");
-                    return;
-                }
-
-                bmp.Save(videoPath + fileImageName, ImageFormat.Bmp);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("捕获图像失败！" + ex.Message, "提示");
-            }
-            finally
-            {
-                transSource.NewFrame -= new NewFrameEventHandler(capturePicture); //结束截图
-            }
-        }
-
 
         private void Form1_Load(object sender, EventArgs e)
         {
             try
             {
-                // 枚举所有视频输入设备
-                videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-
-                if (videoDevices.Count == 0)
-                    throw new ApplicationException();
-
-                foreach (FilterInfo device in videoDevices)
-                {
-                    deviceList.Add(device.Name);
-                }
-
-                BindingSource bs = new BindingSource();
-                bs.DataSource = this.deviceList;
-
-                //deviceListBox.DataSource = bs;
-                this.comboBox1.DataSource = bs;
-
-                deviceListBox.SelectedIndex = 0;
-                comboBox1.SelectedIndex = 0;
-
-                CameraConn();
+                InitializeVideoDevices();
+                CameraConnect();
             }
-            catch (ApplicationException)
+            catch (ApplicationException ex)
             {
                 deviceList.Add("No local capture devices");
-                videoDevices = null;
+                MessageBox.Show("未找到视频捕获设备！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        private void InitializeVideoDevices()
         {
-            this.videoSourcePlayer1.SignalToStop();
-            this.originalSource.SignalToStop();
+            videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
 
-            this.videoSourcePlayer2.SignalToStop();
-            this.transSource.SignalToStop();
+            if (videoDevices.Count == 0)
+                throw new ApplicationException("No video devices found");
 
-            this.Dispose();
-            System.Environment.Exit(0);
+            foreach (FilterInfo device in videoDevices)
+            {
+                deviceList.Add(device.Name);
+            }
+
+            BindingSource bindingSource = new BindingSource();
+            bindingSource.DataSource = deviceList;
+            comboBox1.DataSource = bindingSource;
+            deviceListBox.SelectedIndex = 0;
+            comboBox1.SelectedIndex = 0;
         }
 
-       
+        #endregion
 
-        private void button3_Click(object sender, EventArgs e)
+        #region Camera Connection & Control
+
+        private void CameraConnect()
         {
-            transSource.NewFrame += new NewFrameEventHandler(capturePicture); // 截图
+            if (videoDevices == null || videoDevices.Count == 0)
+                return;
+
+            originalSource = new VideoCaptureDevice(videoDevices[comboBox1.SelectedIndex].MonikerString);
+            originalSource.NewFrame += OnOriginalFrameReceived;
+
+            videoSourcePlayer1.VideoSource = originalSource;
+            videoSourcePlayer1.Start();
+
+            transSource = new AsyncVideoSource(originalSource);
+            videoSourcePlayer2.VideoSource = transSource;
+            transSource.Start();
+            videoSourcePlayer2.Start();
         }
 
-        // 捕获视频：启动摄像头
-        
+        private void OnOriginalFrameReceived(object sender, NewFrameEventArgs eventArgs)
+        {
+            // Apply video effects to the frame
+            Bitmap processedFrame = ApplyVideoEffect(eventArgs.Frame);
+            if (processedFrame != null && processedFrame != eventArgs.Frame)
+            {
+                eventArgs.Frame.Dispose();
+                eventArgs.Frame = processedFrame;
+            }
+        }
+
+        #endregion
+
+        #region Video Effects
+
+        private Bitmap ApplyVideoEffect(Bitmap frame)
+        {
+            if (frame == null)
+                return null;
+
+            int selectedIndex = deviceListBox.SelectedIndex;
+            
+            try
+            {
+                switch (selectedIndex)
+                {
+                    case 0: // Ghost effect (鬼影特效)
+                        return ApplyGhostEffect(frame);
+                    case 1: // Center concave effect (中心内凹特效)
+                        return ApplyCenterConcaveEffect(frame);
+                    case 2: // Center convex effect (中心外凹特效)
+                        return ApplyCenterConvexEffect(frame);
+                    case 3: // Emboss effect (浮雕特效)
+                        return ApplyEmbossEffect(frame);
+                    case 4: // Beauty effect (美艳特效)
+                        return ApplyBeautyEffect(frame);
+                    default:
+                        return frame;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error applying effect: " + ex.Message);
+                return frame;
+            }
+        }
+
+        private Bitmap ApplyGhostEffect(Bitmap frame)
+        {
+            Bitmap result = new Bitmap(frame);
+            try
+            {
+                MotionBlur filter = new MotionBlur(10, 45);
+                result = filter.Apply(result);
+            }
+            catch
+            {
+                // 如果效果应用失败，返回克隆的原始图像
+            }
+            return result;
+        }
+
+        private Bitmap ApplyCenterConcaveEffect(Bitmap frame)
+        {
+            Bitmap result = new Bitmap(frame);
+            try
+            {
+                WienerFilter filter = new WienerFilter(3);
+                result = filter.Apply(result);
+            }
+            catch
+            {
+                // 如果效果应用失败，返回克隆的原始图像
+            }
+            return result;
+        }
+
+        private Bitmap ApplyCenterConvexEffect(Bitmap frame)
+        {
+            Bitmap result = new Bitmap(frame);
+            try
+            {
+                SharpenFilter filter = new SharpenFilter();
+                result = filter.Apply(result);
+            }
+            catch
+            {
+                // 如果效果应用失败，返回克隆的原始图像
+            }
+            return result;
+        }
+
+        private Bitmap ApplyEmbossEffect(Bitmap frame)
+        {
+            Bitmap result = new Bitmap(frame);
+            try
+            {
+                EmbossFilter filter = new EmbossFilter();
+                result = filter.Apply(result);
+            }
+            catch
+            {
+                // 如果效果应用失败，返回克隆的原始图像
+            }
+            return result;
+        }
+
+        private Bitmap ApplyBeautyEffect(Bitmap frame)
+        {
+            Bitmap result = new Bitmap(frame);
+            try
+            {
+                GaussianBlur blur = new GaussianBlur(1.5);
+                result = blur.Apply(result);
+
+                BrightnessCorrection brightness = new BrightnessCorrection(20);
+                result = brightness.Apply(result);
+            }
+            catch
+            {
+                // 如果效果应用失败，返回克隆的原始图像
+            }
+            return result;
+        }
+
+        #endregion
+
+        #region Video Recording
+
+        private void button4_Click_1(object sender, EventArgs e)
+        {
+            if (!isRecording)
+                StartVideoRecording();
+            else
+                StopVideoRecording();
+        }
+
+        private void StartVideoRecording()
+        {
+            shouldStopRecording = false;
+            createNewVideoFile = true;
+            button4.Text = "停止录像";
+
+            if (originalSource != null && !isCaptureBound)
+            {
+                originalSource.NewFrame += OnVideoFrameCapture;
+                isCaptureBound = true;
+            }
+
+            isRecording = true;
+        }
+
+        private void StopVideoRecording()
+        {
+            shouldStopRecording = true;
+            button4.Text = "录制视频";
+
+            if (originalSource != null && isCaptureBound)
+            {
+                originalSource.NewFrame -= OnVideoFrameCapture;
+                isCaptureBound = false;
+            }
+
+            CloseVideoWriter();
+            isRecording = false;
+        }
+
+        private void OnVideoFrameCapture(object sender, NewFrameEventArgs eventArgs)
+        {
+            if (shouldStopRecording)
+                return;
+
+            Bitmap image = null;
+            try
+            {
+                image = (Bitmap)eventArgs.Frame.Clone();
+
+                // Add timestamp watermark
+                DrawTimestampWatermark(image);
+
+                // Create save directory if not exists
+                if (!Directory.Exists(videoPath))
+                    Directory.CreateDirectory(videoPath);
+
+                // Write video frame
+                if (createNewVideoFile)
+                {
+                    CreateNewVideoFile(image);
+                    createNewVideoFile = false;
+                }
+                else
+                {
+                    if (videoWriter != null)
+                        videoWriter.WriteVideoFrame(image);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error capturing video frame: " + ex.Message);
+            }
+            finally
+            {
+                if (image != null)
+                {
+                    image.Dispose();
+                }
+            }
+        }
+
+        private void DrawTimestampWatermark(Bitmap image)
+        {
+            Graphics g = null;
+            SolidBrush brush = null;
+            Font font = null;
+            
+            try
+            {
+                g = Graphics.FromImage(image);
+                brush = new SolidBrush(Color.Yellow);
+                font = new Font("Arial", 6, FontStyle.Bold, GraphicsUnit.Millimeter);
+                
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                g.DrawString(timestamp, font, brush, 15, 10);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error drawing watermark: " + ex.Message);
+            }
+            finally
+            {
+                if (font != null)
+                    font.Dispose();
+                if (brush != null)
+                    brush.Dispose();
+                if (g != null)
+                    g.Dispose();
+            }
+        }
+
+        private void CreateNewVideoFile(Bitmap firstFrame)
+        {
+            CloseVideoWriter();
+
+            string fileName = DateTime.Now.ToString("yyyy.MM.dd HH.mm.ss") + ".avi";
+            string filePath = Path.Combine(videoPath, fileName);
+
+            videoWriter = new VideoFileWriter();
+            videoWriter.Open(filePath, firstFrame.Width, firstFrame.Height, DEFAULT_FRAME_RATE, VideoCodec.MPEG4);
+            videoWriter.WriteVideoFrame(firstFrame);
+        }
+
+        private void CloseVideoWriter()
+        {
+            if (videoWriter != null)
+            {
+                try
+                {
+                    videoWriter.Close();
+                    videoWriter.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("Error closing video writer: " + ex.Message);
+                }
+                finally
+                {
+                    videoWriter = null;
+                }
+            }
+        }
+
+        #endregion
+
+        #region Screenshot
 
         private void button3_Click_1(object sender, EventArgs e)
         {
             if (transSource != null)
-                transSource.NewFrame += new NewFrameEventHandler(capturePicture);
+                transSource.NewFrame += OnScreenCapture;
         }
-        private bool isPaused = false; // 标识当前是否已暂停
+
+        private void OnScreenCapture(object sender, NewFrameEventArgs eventArgs)
+        {
+            try
+            {
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+
+                if (!Directory.Exists(videoPath))
+                    Directory.CreateDirectory(videoPath);
+
+                Bitmap frame = eventArgs.Frame;
+                if (frame == null)
+                {
+                    MessageBox.Show("捕获图像失败！", "提示");
+                    return;
+                }
+
+                string fileName = timestamp + ".bmp";
+                string filePath = Path.Combine(videoPath, fileName);
+                frame.Save(filePath, ImageFormat.Bmp);
+
+                MessageBox.Show("截图已保存: " + fileName, "成功");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("捕获图像失败！" + ex.Message, "错误");
+            }
+            finally
+            {
+                if (transSource != null)
+                    transSource.NewFrame -= OnScreenCapture;
+            }
+        }
+
+        #endregion
+
+        #region Pause/Resume
+
         private void button2_Click(object sender, EventArgs e)
         {
             if (!isPaused)
+                PauseCapture();
+            else
+                ResumeCapture();
+        }
+
+        private void PauseCapture()
+        {
+            StopVideoSources();
+            isPaused = true;
+            button2.Text = "继续捕获";
+        }
+
+        private void ResumeCapture()
+        {
+            StartVideoSources();
+            isPaused = false;
+            button2.Text = "暂停捕获";
+        }
+
+        private void StopVideoSources()
+        {
+            try
             {
-                // 1. 停止预览
                 if (videoSourcePlayer1.VideoSource != null)
                 {
                     videoSourcePlayer1.SignalToStop();
                     videoSourcePlayer1.WaitForStop();
                     videoSourcePlayer1.VideoSource = null;
                 }
+
                 if (videoSourcePlayer2.VideoSource != null)
                 {
                     videoSourcePlayer2.SignalToStop();
                     videoSourcePlayer2.WaitForStop();
                     videoSourcePlayer2.VideoSource = null;
                 }
-                // 2. 停止并释放流
+
                 if (originalSource != null)
                 {
-                    originalSource.NewFrame -= new NewFrameEventHandler(transform);
+                    originalSource.NewFrame -= OnOriginalFrameReceived;
                     originalSource.SignalToStop();
                     originalSource.WaitForStop();
                     originalSource = null;
                 }
+
                 if (transSource != null)
                 {
                     transSource.SignalToStop();
                     transSource.WaitForStop();
                     transSource = null;
                 }
-
-                isPaused = true;
-                button2.Text = "继续捕获";
             }
-            else
+            catch (Exception ex)
             {
-                // 3. 新建原始源
+                System.Diagnostics.Debug.WriteLine("Error stopping video sources: " + ex.Message);
+            }
+        }
+
+        private void StartVideoSources()
+        {
+            if (videoDevices == null || videoDevices.Count == 0)
+                return;
+
+            try
+            {
                 originalSource = new VideoCaptureDevice(videoDevices[comboBox1.SelectedIndex].MonikerString);
-                originalSource.NewFrame += new NewFrameEventHandler(transform);
-                // 4. 新建变换源
+                originalSource.NewFrame += OnOriginalFrameReceived;
+
                 transSource = new AsyncVideoSource(originalSource);
 
-                // 5. 分配给两个播放器
                 videoSourcePlayer1.VideoSource = originalSource;
                 videoSourcePlayer2.VideoSource = transSource;
 
-                // 6. 启动
                 videoSourcePlayer1.Start();
                 videoSourcePlayer2.Start();
-
-                isPaused = false;
-                button2.Text = "暂停捕获";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("恢复捕获失败: " + ex.Message, "错误");
             }
         }
 
+        #endregion
+
+        #region Cleanup
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            Cleanup();
+        }
+
+        private void Cleanup()
+        {
+            try
+            {
+                StopVideoSources();
+                CloseVideoWriter();
+
+                if (videoDevices != null)
+                    videoDevices.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error during cleanup: " + ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
         private void deviceListBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-
+            // Video effect will be applied in real-time when index changes
         }
-       
-      
-       
+
+        #endregion
     }
 }
